@@ -1,0 +1,651 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
+
+-- Load ESP Library
+local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/linemaster2/esp-library/main/library.lua"))()
+
+-- Window Creation
+local Window = Rayfield:CreateWindow({
+   Name = "CroSolana's Project Delta",
+   Icon = 0,
+   LoadingTitle = "Welcome to CroSolana cheats",
+   LoadingSubtitle = "CroSolana",
+   ShowText = "Rayfield",
+   Theme = "Default",
+   ToggleUIKeybind = Enum.KeyCode.RightShift,
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "CroSolanaHub",
+      FileName = "CroSolana Saves"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false,
+   KeySettings = {
+      Title = "Untitled",
+      Subtitle = "Key System",
+      Note = "No method of obtaining the key is provided",
+      FileName = "Key",
+      SaveKey = true,
+      GrabKeyFromSite = false,
+      Key = {"Hello"}
+   }
+})
+
+-- ==================== TABS ====================
+local CombatTab = Window:CreateTab("Combat", 4370345144)
+local VisualsTab = Window:CreateTab("Visuals", 4370345144)
+local PlayersTab = Window:CreateTab("Players", 4370345144)
+local MovementTab = Window:CreateTab("Movement", 4370345144)
+local MiscTab = Window:CreateTab("Misc", 4370345144)
+
+-- ==================== COMBAT TAB - SILENT AIM ====================
+local AimbotSection = CombatTab:CreateSection("Silent Aim (Swimhub Version)")
+
+-- Silent Aim Variables (using swimhub's better implementation)
+local silent_aim = {
+    enabled = false,
+    target_ai = false,
+    testwallbang = false,
+    part = "Head",
+    fov = false,
+    fov_show = false,
+    fov_color = Color3.new(1, 1, 1),
+    fov_outline = false,
+    fov_outline_color = Color3.new(0, 0, 0),
+    fov_size = 100,
+    indicator = false,
+    indicator_text = "",
+    nospread = false,
+    instant = false,
+    target_part = nil,
+    is_npc = false,
+    isvisible = false,
+    instantreload = false,
+    tracer = false,
+    tracer_color = Color3.new(1, 1, 1)
+}
+
+-- Helper Functions
+local _FindFirstChild = game.FindFirstChild
+local _FindFirstChildOfClass = game.FindFirstChildOfClass
+local _WorldToViewportPoint = Camera.WorldToViewportPoint
+local _Vector2new = Vector2.new
+local _IsDescendantOf = game.IsDescendantOf
+local _Raycast = Workspace.Raycast
+
+local vischeck_params = RaycastParams.new()
+vischeck_params.FilterType = Enum.RaycastFilterType.Exclude
+vischeck_params.CollisionGroup = "WeaponRay"
+vischeck_params.IgnoreWater = true
+
+local function is_visible(cframe, target, target_part)
+    if not (target and target_part and cframe) then return false end
+    vischeck_params.FilterDescendantsInstances = { Workspace.NoCollision, Camera, LocalPlayer.Character }
+    local castresults = _Raycast(Workspace, cframe.p, target_part.CFrame.p - cframe.p, vischeck_params)
+    return castresults and castresults.Instance and _IsDescendantOf(castresults.Instance, target)
+end
+
+local function get_closest_target(usefov, fov_size, aimpart, npc)
+    local ermm_part, isnpc = nil, false
+    local maximum_distance = usefov and fov_size or math.huge
+    local mousepos = _Vector2new(Mouse.X, Mouse.Y)
+    
+    if npc then
+        for _, __no in pairs(Workspace.AiZones:GetChildren()) do 
+            for _, npcs in pairs(__no:GetChildren()) do
+                local part = _FindFirstChild(npcs, aimpart)
+                local humanoid = _FindFirstChildOfClass(npcs, "Humanoid")
+                if part and humanoid and humanoid.Health > 0 then
+                    local position, onscreen = _WorldToViewportPoint(Camera, part.Position)
+                    local distance = (_Vector2new(position.X, position.Y) - mousepos).Magnitude
+                    if (usefov and onscreen or not usefov) and distance < maximum_distance then
+                        ermm_part = part
+                        maximum_distance = distance
+                        isnpc = true
+                    end
+                end
+            end 
+        end
+    end
+    
+    for _, plr in Players:GetPlayers() do
+        local character = plr.Character
+        if plr ~= LocalPlayer and character then
+            local part = _FindFirstChild(character, aimpart)
+            local humanoid = _FindFirstChildOfClass(character, "Humanoid")
+            if part and humanoid and humanoid.Health > 0 then
+                local position, onscreen = _WorldToViewportPoint(Camera, part.Position)
+                local distance = (_Vector2new(position.X, position.Y) - mousepos).Magnitude
+                if (usefov and onscreen or not usefov) and distance <= maximum_distance then
+                    ermm_part = part
+                    maximum_distance = distance
+                    isnpc = false
+                end
+            end
+        end
+    end
+    
+    return ermm_part, isnpc
+end
+
+-- Silent Aim UI
+CombatTab:CreateToggle({
+   Name = "Enable Silent Aim",
+   CurrentValue = false,
+   Flag = "SilentAimToggle",
+   Callback = function(Value)
+       silent_aim.enabled = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Instant Hit",
+   CurrentValue = false,
+   Flag = "InstantHitToggle",
+   Callback = function(Value)
+       silent_aim.instant = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Target AI",
+   CurrentValue = false,
+   Flag = "TargetAIToggle",
+   Callback = function(Value)
+       silent_aim.target_ai = Value
+   end,
+})
+
+CombatTab:CreateDropdown({
+   Name = "Aim Part",
+   Options = {'Head','FaceHitBox','HeadTopHitbox','UpperTorso','LowerTorso','HumanoidRootPart'},
+   CurrentOption = "Head",
+   Flag = "AimPartDropdown",
+   Callback = function(Value)
+       silent_aim.part = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Use FOV Circle",
+   CurrentValue = false,
+   Flag = "FOVToggle",
+   Callback = function(Value)
+       silent_aim.fov = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Show FOV Circle",
+   CurrentValue = false,
+   Flag = "ShowFOVToggle",
+   Callback = function(Value)
+       silent_aim.fov_show = Value
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "FOV Size",
+   Range = {50, 500},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 100,
+   Flag = "FOVSlider",
+   Callback = function(Value)
+       silent_aim.fov_size = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Bullet Tracer",
+   CurrentValue = false,
+   Flag = "TracerToggle",
+   Callback = function(Value)
+       silent_aim.tracer = Value
+   end,
+})
+
+-- FOV Circle Drawing
+local CircleOutline = Drawing.new("Circle")
+local CircleInline = Drawing.new("Circle")
+CircleInline.Transparency = 1
+CircleInline.Thickness = 1
+CircleInline.ZIndex = 2
+CircleOutline.Thickness = 3
+CircleOutline.Color = Color3.new()
+CircleOutline.ZIndex = 1
+
+RunService.RenderStepped:Connect(function()
+    CircleOutline.Position = _Vector2new(Mouse.X, Mouse.Y)
+    CircleInline.Position = _Vector2new(Mouse.X, Mouse.Y)
+    CircleInline.Radius = silent_aim.fov_size
+    CircleInline.Color = silent_aim.fov_color
+    CircleInline.Visible = silent_aim.fov and silent_aim.fov_show
+    CircleOutline.Radius = silent_aim.fov_size
+    CircleOutline.Visible = (silent_aim.fov and silent_aim.fov_show and silent_aim.fov_outline)
+end)
+
+-- Update target loop
+RunService.Heartbeat:Connect(function()
+    silent_aim.target_part, silent_aim.is_npc = get_closest_target(silent_aim.fov, silent_aim.fov_size, silent_aim.part, silent_aim.target_ai)
+    silent_aim.isvisible = silent_aim.target_part and is_visible(Camera.CFrame, silent_aim.target_part.Parent, silent_aim.target_part) or nil
+end)
+
+-- Gun Modifications Section
+local GunModsSection = CombatTab:CreateSection("Gun Modifications")
+
+CombatTab:CreateToggle({
+   Name = "No Recoil",
+   CurrentValue = false,
+   Flag = "NoRecoilToggle",
+   Callback = function(Value)
+       if Value then
+           for i, v in pairs(ReplicatedStorage.AmmoTypes:GetChildren()) do
+               if v:GetAttribute("RecoilStrength") then
+                   v:SetAttribute("RecoilStrength", 0)
+               end
+           end
+       end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "No Drag",
+   CurrentValue = false,
+   Flag = "NoDragToggle",
+   Callback = function(Value)
+       if Value then
+           for i, v in pairs(ReplicatedStorage.AmmoTypes:GetChildren()) do
+               if v:GetAttribute("Drag") then
+                   v:SetAttribute("Drag", 0)
+               end
+           end
+       end
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "No Bullet Drop",
+   CurrentValue = false,
+   Flag = "NoDropToggle",
+   Callback = function(Value)
+       if Value then
+           for i, v in pairs(ReplicatedStorage.AmmoTypes:GetChildren()) do
+               if v:GetAttribute("ProjectileDrop") then
+                   v:SetAttribute("ProjectileDrop", 0)
+               end
+           end
+       end
+   end,
+})
+
+-- ==================== VISUALS TAB ====================
+local ESPSection = VisualsTab:CreateSection("ESP Settings")
+
+VisualsTab:CreateToggle({
+   Name = "Enable ESP",
+   CurrentValue = false,
+   Flag = "ESPToggle",
+   Callback = function(Value)
+       ESP.Enabled = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Boxes",
+   CurrentValue = false,
+   Flag = "BoxESPToggle",
+   Callback = function(Value)
+       ESP.ShowBox = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Health Bar",
+   CurrentValue = false,
+   Flag = "HealthESPToggle",
+   Callback = function(Value)
+       ESP.ShowHealth = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Names",
+   CurrentValue = false,
+   Flag = "NameESPToggle",
+   Callback = function(Value)
+       ESP.ShowName = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Tracers",
+   CurrentValue = false,
+   Flag = "TracerESPToggle",
+   Callback = function(Value)
+       ESP.ShowTracer = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Distance",
+   CurrentValue = false,
+   Flag = "DistanceESPToggle",
+   Callback = function(Value)
+       ESP.ShowDistance = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Show Skeletons",
+   CurrentValue = false,
+   Flag = "SkeletonESPToggle",
+   Callback = function(Value)
+       ESP.ShowSkeletons = Value
+   end,
+})
+
+-- ESP Distance Slider
+VisualsTab:CreateSlider({
+   Name = "ESP Max Distance",
+   Range = {100, 1000},
+   Increment = 50,
+   Suffix = " studs",
+   CurrentValue = 500,
+   Flag = "ESPDistanceSlider",
+   Callback = function(Value)
+       -- This would need to be implemented in the ESP library
+       -- For now it's a placeholder
+   end,
+})
+
+-- ==================== PLAYERS TAB - INVENTORY CHECKER ====================
+local InventorySection = PlayersTab:CreateSection("Inventory Checker (Swimhub)")
+
+-- Inventory Checker Variables (from swimhub)
+local inv_originalpos = Vector2.new(200, 200)
+local draw, inventory, objects = {}, { objs = {} }, {}
+
+function draw:new(type, props)
+    local obj = Drawing.new(type)
+    for i,v in pairs(props) do
+        obj[i] = v
+    end
+    objects[#objects + 1] = obj
+    return obj
+end
+
+function draw:removeall()
+    for i, v in pairs(objects) do
+        v:Remove()
+        table.remove(objects, i)
+    end
+end
+
+function draw:changevis(value)
+    for i, v in pairs(objects) do
+        v.Visible = value
+    end
+end
+
+function inventory:add(_text, _size)
+    local text = draw:new("Text", {
+        Text = _text,
+        Size = _size,
+        Font = Drawing.Fonts.Monospace,
+        Outline = true,
+        Center = false,
+        Position = inv_originalpos + Vector2.new(0, (_size + 1) * #inventory.objs),
+        Transparency = 1,
+        Visible = true,
+        Color = Color3.new(1, 1, 1),
+        ZIndex = 1,
+    })
+    inventory.objs[#inventory.objs + 1] = text
+end
+
+function inventory:refresh()
+    for i, v in inventory.objs do
+        if v then v:Remove() end
+        inventory.objs[i] = nil
+        v = nil
+    end
+end
+
+function inventory:update(__name)
+    local rplayers = ReplicatedStorage.Players
+    local updateon
+    for _, rplayer in next, rplayers:GetChildren() do
+        if __name == rplayer.Name then
+            updateon = rplayer
+        end
+    end
+    if not updateon then return inventory:refresh() end
+    inventory:add("" .. updateon.Name .. " Inventory", 13)
+    inventory:add("[Inventory]", 13)
+    for _, item in next, updateon.Inventory:GetChildren() do
+        inventory:add("    " .. item.Name, 13)
+    end
+end
+
+-- Inventory UI
+local INVENTORY_ENABLED = false
+local INV_UPDATE_DELAY = 0.25
+local FrameTimer = tick()
+
+PlayersTab:CreateToggle({
+   Name = "Enable Inventory Viewer",
+   CurrentValue = false,
+   Flag = "InvViewerToggle",
+   Callback = function(Value)
+       INVENTORY_ENABLED = Value
+       if not Value then
+           inventory:refresh()
+       end
+   end,
+})
+
+PlayersTab:CreateSlider({
+   Name = "Position X",
+   Range = {0, 1920},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 200,
+   Flag = "InvPosXSlider",
+   Callback = function(Value)
+       inv_originalpos = Vector2.new(Value, inv_originalpos.Y)
+   end,
+})
+
+PlayersTab:CreateSlider({
+   Name = "Position Y",
+   Range = {0, 1080},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 200,
+   Flag = "InvPosYSlider",
+   Callback = function(Value)
+       inv_originalpos = Vector2.new(inv_originalpos.X, Value)
+   end,
+})
+
+PlayersTab:CreateSlider({
+   Name = "Update Delay",
+   Range = {0.1, 2},
+   Increment = 0.05,
+   Suffix = "s",
+   CurrentValue = 0.25,
+   Flag = "InvDelaySlider",
+   Callback = function(Value)
+       INV_UPDATE_DELAY = Value
+   end,
+})
+
+-- Inventory Update Loop
+RunService.RenderStepped:Connect(function()
+    if (tick() - FrameTimer) >= INV_UPDATE_DELAY then
+        FrameTimer = tick()
+        inventory:refresh()
+        if INVENTORY_ENABLED and silent_aim.target_part then
+            local name = silent_aim.target_part.Parent.Name
+            inventory:update(name)
+        end
+    end
+end)
+
+-- ==================== MOVEMENT TAB ====================
+local SpeedSection = MovementTab:CreateSection("Speed")
+
+getgenv().CFrameSpeedEnabled = false
+getgenv().CFrameSpeedValue = 16
+getgenv().FlyEnabled = false
+getgenv().FlySpeedValue = 50
+
+MovementTab:CreateToggle({
+   Name = "Enable CFrame Speed",
+   CurrentValue = false,
+   Flag = "SpeedToggle",
+   Callback = function(Value)
+       getgenv().CFrameSpeedEnabled = Value
+   end,
+})
+
+MovementTab:CreateSlider({
+   Name = "Speed Amount",
+   Range = {16, 100},
+   Increment = 1,
+   Suffix = " studs/s",
+   CurrentValue = 16,
+   Flag = "SpeedSlider",
+   Callback = function(Value)
+       getgenv().CFrameSpeedValue = Value
+   end,
+})
+
+local FlySection = MovementTab:CreateSection("Fly")
+
+MovementTab:CreateToggle({
+   Name = "Enable Fly",
+   CurrentValue = false,
+   Flag = "FlyToggle",
+   Callback = function(Value)
+       getgenv().FlyEnabled = Value
+       
+       local Character = LocalPlayer.Character
+       local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+       
+       if Value and RootPart then
+           local BV = Instance.new("BodyVelocity")
+           BV.Name = "FlyVelocity"
+           BV.MaxForce = Vector3.new(9e9, 9e9, 9e9)
+           BV.Velocity = Vector3.new(0, 0, 0)
+           BV.Parent = RootPart
+       else
+           if RootPart and RootPart:FindFirstChild("FlyVelocity") then
+               RootPart.FlyVelocity:Destroy()
+           end
+       end
+   end,
+})
+
+MovementTab:CreateSlider({
+   Name = "Fly Speed",
+   Range = {10, 200},
+   Increment = 5,
+   Suffix = " studs/s",
+   CurrentValue = 50,
+   Flag = "FlySpeedSlider",
+   Callback = function(Value)
+       getgenv().FlySpeedValue = Value
+   end,
+})
+
+-- Movement Control Loop
+RunService.RenderStepped:Connect(function(deltaTime)
+    local Character = LocalPlayer.Character
+    local RootPart = Character and Character:FindFirstChild("HumanoidRootPart")
+    
+    if not Character or not RootPart then return end
+
+    -- CFrame Speed
+    if getgenv().CFrameSpeedEnabled then
+        local moveDirection = Vector3.new()
+        local humanoid = Character:FindFirstChildOfClass("Humanoid")
+        
+        if humanoid and humanoid.MoveDirection.Magnitude > 0 then
+            moveDirection = humanoid.MoveDirection
+            local speed = getgenv().CFrameSpeedValue
+            local moveCFrame = CFrame.new(moveDirection * speed * deltaTime)
+            RootPart.CFrame = RootPart.CFrame * moveCFrame
+        end
+    end
+
+    -- Fly
+    if getgenv().FlyEnabled and RootPart:FindFirstChild("FlyVelocity") then
+        local moveDirection = Vector3.new()
+        
+        if UserInputService:IsKeyDown(Enum.KeyCode.W) then
+            moveDirection = moveDirection + Vector3.new(0, 0, -1)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.S) then
+            moveDirection = moveDirection + Vector3.new(0, 0, 1)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.A) then
+            moveDirection = moveDirection + Vector3.new(-1, 0, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.D) then
+            moveDirection = moveDirection + Vector3.new(1, 0, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.Space) then
+            moveDirection = moveDirection + Vector3.new(0, 1, 0)
+        end
+        if UserInputService:IsKeyDown(Enum.KeyCode.LeftControl) then
+            moveDirection = moveDirection + Vector3.new(0, -1, 0)
+        end
+        
+        local speed = getgenv().FlySpeedValue
+        local velocity = (Camera.CFrame:VectorToWorldSpace(moveDirection).Unit * speed)
+        RootPart.FlyVelocity.Velocity = moveDirection.Magnitude > 0 and velocity or Vector3.new(0, 0, 0)
+    end
+end)
+
+-- ==================== MISC TAB ====================
+local ScriptsSection = MiscTab:CreateSection("Script Hub")
+
+MiscTab:CreateButton({
+   Name = "Infinite Yield",
+   Callback = function()
+       loadstring(game:HttpGet("https://raw.githubusercontent.com/EdgeIY/infiniteyield/master/source"))()
+   end,
+})
+
+MiscTab:CreateButton({
+   Name = "Unnamed ESP",
+   Callback = function()
+       loadstring(game:HttpGet('https://raw.githubusercontent.com/ic3w0lf22/Unnamed-ESP/master/UnnamedESP.lua'))()
+   end,
+})
+
+-- Notification
+Rayfield:Notify({
+   Title = "CroSolana's Project Delta",
+   Content = "Script loaded successfully!",
+   Duration = 5,
+   Image = 4370345144,
+})
