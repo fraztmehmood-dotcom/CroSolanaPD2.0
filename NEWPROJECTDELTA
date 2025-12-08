@@ -1,0 +1,936 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+-- Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local VirtualUser = game:GetService("VirtualUser")
+local Lighting = game:GetService("Lighting")
+
+local LocalPlayer = Players.LocalPlayer
+local Mouse = LocalPlayer:GetMouse()
+local Camera = Workspace.CurrentCamera
+
+-- Solara Compatibility Check
+local function checkSolaraCompat()
+    local features = {
+        hookmetamethod = hookmetamethod,
+        newcclosure = newcclosure,
+        Drawing = Drawing,
+        getnamecallmethod = getnamecallmethod,
+        checkcaller = checkcaller
+    }
+    
+    for name, func in pairs(features) do
+        if not func then
+            warn("Missing function:", name)
+            return false
+        end
+    end
+    return true
+end
+
+if not checkSolaraCompat() then
+    warn("Some features may not work on your executor!")
+end
+
+-- Load ESP Library
+local ESP = loadstring(game:HttpGet("https://raw.githubusercontent.com/linemaster2/esp-library/main/library.lua"))()
+
+-- Window Creation
+local Window = Rayfield:CreateWindow({
+   Name = "CroSolana's Project Delta - Optimized",
+   Icon = 0,
+   LoadingTitle = "Loading Optimized Cheats",
+   LoadingSubtitle = "Solara Compatible",
+   ShowText = "Rayfield",
+   Theme = "Default",
+   ToggleUIKeybind = Enum.KeyCode.RightShift,
+   DisableRayfieldPrompts = false,
+   DisableBuildWarnings = false,
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "CroSolanaHub",
+      FileName = "CroSolana Saves"
+   },
+   Discord = {
+      Enabled = false,
+      Invite = "noinvitelink",
+      RememberJoins = true
+   },
+   KeySystem = false,
+})
+
+-- ==================== TABS ====================
+local CombatTab = Window:CreateTab("Combat", 4370345144)
+local VisualsTab = Window:CreateTab("Visuals", 4370345144)
+local PlayersTab = Window:CreateTab("Players", 4370345144)
+local MovementTab = Window:CreateTab("Movement", 4370345144)
+local MiscTab = Window:CreateTab("Misc", 4370345144)
+
+-- ==================== UTILITY FUNCTIONS ====================
+local function GetCharacter(player)
+    return player and player.Character
+end
+
+local function GetRootPart(character)
+    return character and (character:FindFirstChild("HumanoidRootPart") or character:FindFirstChild("Torso"))
+end
+
+local function GetHumanoid(character)
+    return character and character:FindFirstChildOfClass("Humanoid")
+end
+
+local function IsAlive(player)
+    local character = GetCharacter(player)
+    local humanoid = GetHumanoid(character)
+    return character and humanoid and humanoid.Health > 0
+end
+
+local function WorldToScreen(position)
+    local screenPoint, onScreen = Camera:WorldToViewportPoint(position)
+    return Vector2.new(screenPoint.X, screenPoint.Y), onScreen, screenPoint.Z
+end
+
+local function GetMousePosition()
+    return Vector2.new(Mouse.X, Mouse.Y)
+end
+
+-- ==================== COMBAT TAB - NORMAL AIMBOT ====================
+local AimbotSection = CombatTab:CreateSection("Normal Aimbot")
+
+local Aimbot = {
+    Enabled = false,
+    TeamCheck = false,
+    VisibleCheck = true,
+    TargetPart = "Head",
+    Smoothness = 0.1,
+    FOV = 200,
+    ShowFOV = false,
+    FOVColor = Color3.new(1, 1, 1),
+    UseMouseButton = true,
+    Keybind = Enum.UserInputType.MouseButton2,
+    CurrentTarget = nil,
+    Locked = false
+}
+
+local function GetClosestPlayerToMouse()
+    local closestPlayer = nil
+    local shortestDistance = Aimbot.FOV
+    local mousePos = GetMousePosition()
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and IsAlive(player) then
+            local character = GetCharacter(player)
+            local targetPart = character:FindFirstChild(Aimbot.TargetPart)
+            
+            if targetPart then
+                local screenPos, onScreen = WorldToScreen(targetPart.Position)
+                
+                if onScreen then
+                    local distance = (screenPos - mousePos).Magnitude
+                    
+                    if distance < shortestDistance then
+                        if Aimbot.TeamCheck and player.Team == LocalPlayer.Team then
+                            continue
+                        end
+                        
+                        if Aimbot.VisibleCheck then
+                            local ray = Ray.new(Camera.CFrame.Position, (targetPart.Position - Camera.CFrame.Position).Unit * 500)
+                            local part, position = Workspace:FindPartOnRayWithIgnoreList(ray, {LocalPlayer.Character, Camera})
+                            
+                            if part and part:IsDescendantOf(character) then
+                                closestPlayer = player
+                                shortestDistance = distance
+                            end
+                        else
+                            closestPlayer = player
+                            shortestDistance = distance
+                        end
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+local function AimAtTarget(target)
+    if not target or not IsAlive(target) then return end
+    
+    local character = GetCharacter(target)
+    local targetPart = character:FindFirstChild(Aimbot.TargetPart)
+    
+    if not targetPart then return end
+    
+    local targetPosition = targetPart.Position
+    local cameraPosition = Camera.CFrame.Position
+    
+    local direction = (targetPosition - cameraPosition).Unit
+    local newCFrame = CFrame.new(cameraPosition, targetPosition)
+    
+    -- Smooth aiming
+    if Aimbot.Smoothness > 0 then
+        Camera.CFrame = Camera.CFrame:Lerp(newCFrame, Aimbot.Smoothness)
+    else
+        Camera.CFrame = newCFrame
+    end
+end
+
+-- Aimbot UI
+CombatTab:CreateToggle({
+   Name = "Enable Aimbot",
+   CurrentValue = false,
+   Flag = "AimbotToggle",
+   Callback = function(Value)
+       Aimbot.Enabled = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Team Check",
+   CurrentValue = false,
+   Flag = "TeamCheckToggle",
+   Callback = function(Value)
+       Aimbot.TeamCheck = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Visibility Check",
+   CurrentValue = true,
+   Flag = "VisCheckToggle",
+   Callback = function(Value)
+       Aimbot.VisibleCheck = Value
+   end,
+})
+
+CombatTab:CreateDropdown({
+   Name = "Target Part",
+   Options = {'Head', 'UpperTorso', 'LowerTorso', 'HumanoidRootPart'},
+   CurrentOption = {"Head"},
+   Flag = "TargetPartDropdown",
+   Callback = function(Option)
+       Aimbot.TargetPart = Option[1]
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "Smoothness",
+   Range = {0, 1},
+   Increment = 0.01,
+   Suffix = "",
+   CurrentValue = 0.1,
+   Flag = "SmoothnessSlider",
+   Callback = function(Value)
+       Aimbot.Smoothness = Value
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "FOV Size",
+   Range = {50, 500},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 200,
+   Flag = "AimbotFOVSlider",
+   Callback = function(Value)
+       Aimbot.FOV = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Show FOV Circle",
+   CurrentValue = false,
+   Flag = "ShowAimbotFOV",
+   Callback = function(Value)
+       Aimbot.ShowFOV = Value
+   end,
+})
+
+-- FOV Circle
+local AimbotFOVCircle = Drawing.new("Circle")
+AimbotFOVCircle.Thickness = 2
+AimbotFOVCircle.NumSides = 64
+AimbotFOVCircle.Radius = Aimbot.FOV
+AimbotFOVCircle.Filled = false
+AimbotFOVCircle.Visible = false
+AimbotFOVCircle.Color = Color3.new(1, 1, 1)
+AimbotFOVCircle.Transparency = 1
+
+-- Input Detection
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    
+    if input.UserInputType == Enum.UserInputType.MouseButton2 and Aimbot.Enabled then
+        Aimbot.Locked = true
+    end
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton2 then
+        Aimbot.Locked = false
+        Aimbot.CurrentTarget = nil
+    end
+end)
+
+-- Aimbot Loop
+RunService.RenderStepped:Connect(function()
+    -- Update FOV Circle
+    local mousePos = GetMousePosition()
+    AimbotFOVCircle.Position = mousePos
+    AimbotFOVCircle.Radius = Aimbot.FOV
+    AimbotFOVCircle.Visible = Aimbot.ShowFOV
+    AimbotFOVCircle.Color = Aimbot.FOVColor
+    
+    -- Aimbot Logic
+    if Aimbot.Enabled and Aimbot.Locked then
+        if not Aimbot.CurrentTarget or not IsAlive(Aimbot.CurrentTarget) then
+            Aimbot.CurrentTarget = GetClosestPlayerToMouse()
+        end
+        
+        if Aimbot.CurrentTarget then
+            AimAtTarget(Aimbot.CurrentTarget)
+        end
+    end
+end)
+
+-- ==================== COMBAT TAB - TRIGGERBOT ====================
+local TriggerbotSection = CombatTab:CreateSection("Triggerbot")
+
+local Triggerbot = {
+    Enabled = false,
+    Delay = 0.1,
+    TeamCheck = false,
+    LastShot = 0
+}
+
+local function IsMouseOnPlayer()
+    local mousePos = GetMousePosition()
+    local ray = Camera:ScreenPointToRay(mousePos.X, mousePos.Y)
+    local raycastParams = RaycastParams.new()
+    raycastParams.FilterDescendantsInstances = {LocalPlayer.Character}
+    raycastParams.FilterType = Enum.RaycastFilterType.Blacklist
+    
+    local result = Workspace:Raycast(ray.Origin, ray.Direction * 1000, raycastParams)
+    
+    if result and result.Instance then
+        local player = Players:GetPlayerFromCharacter(result.Instance.Parent)
+        if player and player ~= LocalPlayer and IsAlive(player) then
+            if Triggerbot.TeamCheck and player.Team == LocalPlayer.Team then
+                return false
+            end
+            return true
+        end
+    end
+    
+    return false
+end
+
+CombatTab:CreateToggle({
+   Name = "Enable Triggerbot",
+   CurrentValue = false,
+   Flag = "TriggerbotToggle",
+   Callback = function(Value)
+       Triggerbot.Enabled = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Triggerbot Team Check",
+   CurrentValue = false,
+   Flag = "TriggerbotTeamCheck",
+   Callback = function(Value)
+       Triggerbot.TeamCheck = Value
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "Trigger Delay",
+   Range = {0, 0.5},
+   Increment = 0.01,
+   Suffix = "s",
+   CurrentValue = 0.1,
+   Flag = "TriggerDelaySlider",
+   Callback = function(Value)
+       Triggerbot.Delay = Value
+   end,
+})
+
+-- Triggerbot Loop
+RunService.Heartbeat:Connect(function()
+    if Triggerbot.Enabled and IsMouseOnPlayer() then
+        local currentTime = tick()
+        if currentTime - Triggerbot.LastShot >= Triggerbot.Delay then
+            mouse1press()
+            task.wait(0.01)
+            mouse1release()
+            Triggerbot.LastShot = currentTime
+        end
+    end
+end)
+
+-- ==================== SILENT AIM (Fixed) ====================
+local SilentAimSection = CombatTab:CreateSection("Silent Aim")
+
+local SilentAim = {
+    Enabled = false,
+    TargetPart = "Head",
+    FOV = 100,
+    ShowFOV = false,
+    TargetNPC = false,
+    Prediction = false,
+    CurrentTarget = nil
+}
+
+local function GetClosestPlayerForSilentAim()
+    local closestPlayer = nil
+    local shortestDistance = SilentAim.FOV
+    local mousePos = GetMousePosition()
+    
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer and IsAlive(player) then
+            local character = GetCharacter(player)
+            local targetPart = character:FindFirstChild(SilentAim.TargetPart)
+            
+            if targetPart then
+                local screenPos, onScreen = WorldToScreen(targetPart.Position)
+                
+                if onScreen then
+                    local distance = (screenPos - mousePos).Magnitude
+                    
+                    if distance < shortestDistance then
+                        closestPlayer = player
+                        shortestDistance = distance
+                    end
+                end
+            end
+        end
+    end
+    
+    return closestPlayer
+end
+
+CombatTab:CreateToggle({
+   Name = "Enable Silent Aim",
+   CurrentValue = false,
+   Flag = "SilentAimToggle",
+   Callback = function(Value)
+       SilentAim.Enabled = Value
+   end,
+})
+
+CombatTab:CreateDropdown({
+   Name = "Silent Aim Part",
+   Options = {'Head', 'UpperTorso', 'LowerTorso', 'HumanoidRootPart'},
+   CurrentOption = {"Head"},
+   Flag = "SilentAimPartDropdown",
+   Callback = function(Option)
+       SilentAim.TargetPart = Option[1]
+   end,
+})
+
+CombatTab:CreateSlider({
+   Name = "Silent FOV",
+   Range = {50, 500},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 100,
+   Flag = "SilentFOVSlider",
+   Callback = function(Value)
+       SilentAim.FOV = Value
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "Show Silent FOV",
+   CurrentValue = false,
+   Flag = "ShowSilentFOV",
+   Callback = function(Value)
+       SilentAim.ShowFOV = Value
+   end,
+})
+
+-- Silent Aim FOV Circle
+local SilentFOVCircle = Drawing.new("Circle")
+SilentFOVCircle.Thickness = 2
+SilentFOVCircle.NumSides = 64
+SilentFOVCircle.Radius = SilentAim.FOV
+SilentFOVCircle.Filled = false
+SilentFOVCircle.Visible = false
+SilentFOVCircle.Color = Color3.fromRGB(255, 0, 0)
+SilentFOVCircle.Transparency = 1
+
+-- Silent Aim Hook (Solara Compatible)
+if hookmetamethod and newcclosure then
+    local oldNamecall
+    oldNamecall = hookmetamethod(game, "__namecall", newcclosure(function(self, ...)
+        local args = {...}
+        local method = getnamecallmethod()
+        
+        if not checkcaller() and SilentAim.Enabled and SilentAim.CurrentTarget then
+            if method == "FireServer" or method == "InvokeServer" then
+                if self.Name == "ProjectileInflict" or self.Name == "FireProjectile" then
+                    local character = GetCharacter(SilentAim.CurrentTarget)
+                    local targetPart = character and character:FindFirstChild(SilentAim.TargetPart)
+                    
+                    if targetPart then
+                        -- Modify args to hit target
+                        if #args >= 1 then
+                            args[1] = targetPart
+                        end
+                    end
+                end
+            end
+        end
+        
+        return oldNamecall(self, unpack(args))
+    end))
+end
+
+-- Silent Aim Update Loop
+RunService.RenderStepped:Connect(function()
+    local mousePos = GetMousePosition()
+    SilentFOVCircle.Position = mousePos
+    SilentFOVCircle.Radius = SilentAim.FOV
+    SilentFOVCircle.Visible = SilentAim.ShowFOV
+    
+    if SilentAim.Enabled then
+        SilentAim.CurrentTarget = GetClosestPlayerForSilentAim()
+    end
+end)
+
+-- ==================== GUN MODS ====================
+local GunModsSection = CombatTab:CreateSection("Gun Modifications")
+
+CombatTab:CreateToggle({
+   Name = "No Recoil",
+   CurrentValue = false,
+   Flag = "NoRecoilToggle",
+   Callback = function(Value)
+       pcall(function()
+           for _, v in pairs(ReplicatedStorage.AmmoTypes:GetChildren()) do
+               if v:GetAttribute("RecoilStrength") then
+                   v:SetAttribute("RecoilStrength", Value and 0 or nil)
+               end
+           end
+       end)
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "No Spread",
+   CurrentValue = false,
+   Flag = "NoSpreadToggle",
+   Callback = function(Value)
+       pcall(function()
+           for _, v in pairs(ReplicatedStorage.AmmoTypes:GetChildren()) do
+               if v:GetAttribute("AccuracyDeviation") then
+                   v:SetAttribute("AccuracyDeviation", Value and 0 or nil)
+               end
+           end
+       end)
+   end,
+})
+
+CombatTab:CreateToggle({
+   Name = "No Bullet Drop",
+   CurrentValue = false,
+   Flag = "NoDropToggle",
+   Callback = function(Value)
+       pcall(function()
+           for _, v in pairs(ReplicatedStorage.AmmoTypes:GetChildren()) do
+               if v:GetAttribute("ProjectileDrop") then
+                   v:SetAttribute("ProjectileDrop", Value and 0 or nil)
+               end
+           end
+       end)
+   end,
+})
+
+-- ==================== VISUALS TAB - ESP ====================
+local ESPSection = VisualsTab:CreateSection("ESP")
+
+VisualsTab:CreateToggle({
+   Name = "Enable ESP",
+   CurrentValue = false,
+   Flag = "ESPToggle",
+   Callback = function(Value)
+       ESP.Enabled = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Boxes",
+   CurrentValue = false,
+   Flag = "BoxESP",
+   Callback = function(Value)
+       ESP.ShowBox = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Names",
+   CurrentValue = false,
+   Flag = "NameESP",
+   Callback = function(Value)
+       ESP.ShowName = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Health",
+   CurrentValue = false,
+   Flag = "HealthESP",
+   Callback = function(Value)
+       ESP.ShowHealth = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Distance",
+   CurrentValue = false,
+   Flag = "DistanceESP",
+   Callback = function(Value)
+       ESP.ShowDistance = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Tracers",
+   CurrentValue = false,
+   Flag = "TracerESP",
+   Callback = function(Value)
+       ESP.ShowTracer = Value
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Skeletons",
+   CurrentValue = false,
+   Flag = "SkeletonESP",
+   Callback = function(Value)
+       ESP.ShowSkeletons = Value
+   end,
+})
+
+-- ==================== VISUALS TAB - CHAMS ====================
+local ChamsSection = VisualsTab:CreateSection("Chams")
+
+local Chams = {
+    Enabled = false,
+    FillColor = Color3.fromRGB(255, 0, 0),
+    FillTransparency = 0.5,
+    OutlineColor = Color3.fromRGB(255, 255, 255),
+    OutlineTransparency = 0,
+    VisibleOnly = false,
+    Highlights = {}
+}
+
+local function CreateCham(player)
+    if Chams.Highlights[player] then return end
+    
+    local character = GetCharacter(player)
+    if not character then return end
+    
+    local highlight = Instance.new("Highlight")
+    highlight.Name = "ChamHighlight"
+    highlight.Adornee = character
+    highlight.FillColor = Chams.FillColor
+    highlight.FillTransparency = Chams.FillTransparency
+    highlight.OutlineColor = Chams.OutlineColor
+    highlight.OutlineTransparency = Chams.OutlineTransparency
+    highlight.DepthMode = Chams.VisibleOnly and Enum.HighlightDepthMode.Occluded or Enum.HighlightDepthMode.AlwaysOnTop
+    highlight.Parent = character
+    
+    Chams.Highlights[player] = highlight
+end
+
+local function RemoveCham(player)
+    if Chams.Highlights[player] then
+        Chams.Highlights[player]:Destroy()
+        Chams.Highlights[player] = nil
+    end
+end
+
+local function UpdateChams()
+    for player, highlight in pairs(Chams.Highlights) do
+        if highlight and highlight.Parent then
+            highlight.FillColor = Chams.FillColor
+            highlight.FillTransparency = Chams.FillTransparency
+            highlight.OutlineColor = Chams.OutlineColor
+            highlight.OutlineTransparency = Chams.OutlineTransparency
+            highlight.DepthMode = Chams.VisibleOnly and Enum.HighlightDepthMode.Occluded or Enum.HighlightDepthMode.AlwaysOnTop
+        end
+    end
+end
+
+VisualsTab:CreateToggle({
+   Name = "Enable Chams",
+   CurrentValue = false,
+   Flag = "ChamsToggle",
+   Callback = function(Value)
+       Chams.Enabled = Value
+       
+       if Value then
+           for _, player in ipairs(Players:GetPlayers()) do
+               if player ~= LocalPlayer then
+                   CreateCham(player)
+               end
+           end
+       else
+           for player, _ in pairs(Chams.Highlights) do
+               RemoveCham(player)
+           end
+       end
+   end,
+})
+
+VisualsTab:CreateToggle({
+   Name = "Visible Only",
+   CurrentValue = false,
+   Flag = "ChamsVisibleOnly",
+   Callback = function(Value)
+       Chams.VisibleOnly = Value
+       UpdateChams()
+   end,
+})
+
+VisualsTab:CreateColorPicker({
+   Name = "Fill Color",
+   Color = Color3.fromRGB(255, 0, 0),
+   Flag = "ChamsFillColor",
+   Callback = function(Value)
+       Chams.FillColor = Value
+       UpdateChams()
+   end
+})
+
+VisualsTab:CreateSlider({
+   Name = "Fill Transparency",
+   Range = {0, 1},
+   Increment = 0.1,
+   Suffix = "",
+   CurrentValue = 0.5,
+   Flag = "ChamsFillTrans",
+   Callback = function(Value)
+       Chams.FillTransparency = Value
+       UpdateChams()
+   end,
+})
+
+-- Chams Player Management
+Players.PlayerAdded:Connect(function(player)
+    if Chams.Enabled and player ~= LocalPlayer then
+        player.CharacterAdded:Connect(function()
+            task.wait(0.5)
+            CreateCham(player)
+        end)
+    end
+end)
+
+Players.PlayerRemoving:Connect(function(player)
+    RemoveCham(player)
+end)
+
+-- ==================== VISUALS TAB - FOV CHANGER ====================
+local FOVSection = VisualsTab:CreateSection("FOV Changer")
+
+local FOVChanger = {
+    Enabled = false,
+    FOV = 70,
+    OriginalFOV = Camera.FieldOfView
+}
+
+VisualsTab:CreateToggle({
+   Name = "Enable FOV Changer",
+   CurrentValue = false,
+   Flag = "FOVChangerToggle",
+   Callback = function(Value)
+       FOVChanger.Enabled = Value
+       if not Value then
+           Camera.FieldOfView = FOVChanger.OriginalFOV
+       end
+   end,
+})
+
+VisualsTab:CreateSlider({
+   Name = "FOV Amount",
+   Range = {30, 120},
+   Increment = 1,
+   Suffix = "°",
+   CurrentValue = 70,
+   Flag = "FOVAmount",
+   Callback = function(Value)
+       FOVChanger.FOV = Value
+   end,
+})
+
+-- FOV Changer Loop
+RunService.RenderStepped:Connect(function()
+    if FOVChanger.Enabled then
+        Camera.FieldOfView = FOVChanger.FOV
+    end
+end)
+
+-- Prevent game from changing FOV
+if hookmetamethod and newcclosure then
+    local oldNewIndex
+    oldNewIndex = hookmetamethod(game, "__newindex", newcclosure(function(self, key, value)
+        if not checkcaller() and self == Camera and key == "FieldOfView" and FOVChanger.Enabled then
+            return
+        end
+        
+        return oldNewIndex(self, key, value)
+    end))
+end
+
+-- ==================== PLAYERS TAB - INVENTORY CHECKER ====================
+local InventorySection = PlayersTab:CreateSection("Inventory Checker")
+
+local InventoryChecker = {
+    Enabled = false,
+    UpdateDelay = 0.25,
+    Position = Vector2.new(200, 200),
+    LastUpdate = 0,
+    Drawings = {}
+}
+
+local function ClearInventoryDrawings()
+    for _, drawing in pairs(InventoryChecker.Drawings) do
+        pcall(function() drawing:Remove() end)
+    end
+    InventoryChecker.Drawings = {}
+end
+
+local function CreateInventoryText(text, yOffset)
+    local drawing = Drawing.new("Text")
+    drawing.Text = text
+    drawing.Size = 13
+    drawing.Font = Drawing.Fonts.Monospace
+    drawing.Outline = true
+    drawing.Center = false
+    drawing.Position = InventoryChecker.Position + Vector2.new(0, yOffset)
+    drawing.Color = Color3.new(1, 1, 1)
+    drawing.Visible = true
+    
+    table.insert(InventoryChecker.Drawings, drawing)
+    return drawing
+end
+
+local function UpdateInventory(playerName)
+    ClearInventoryDrawings()
+    
+    pcall(function()
+        local rplayers = ReplicatedStorage:FindFirstChild("Players")
+        if not rplayers then return end
+        
+        local targetPlayer = rplayers:FindFirstChild(playerName)
+        if not targetPlayer then return end
+        
+        local yOffset = 0
+        CreateInventoryText(playerName .. "'s Inventory", yOffset)
+        yOffset = yOffset + 15
+        
+        CreateInventoryText("[Inventory]", yOffset)
+        yOffset = yOffset + 15
+        
+        local inventory = targetPlayer:FindFirstChild("Inventory")
+        if inventory then
+            for _, item in pairs(inventory:GetChildren()) do
+                CreateInventoryText("  " .. item.Name, yOffset)
+                yOffset = yOffset + 15
+            end
+        end
+    end)
+end
+
+PlayersTab:CreateToggle({
+   Name = "Enable Inventory Viewer",
+   CurrentValue = false,
+   Flag = "InventoryViewer",
+   Callback = function(Value)
+       InventoryChecker.Enabled = Value
+       if not Value then
+           ClearInventoryDrawings()
+       end
+   end,
+})
+
+PlayersTab:CreateSlider({
+   Name = "Position X",
+   Range = {0, 1920},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 200,
+   Flag = "InvPosX",
+   Callback = function(Value)
+       InventoryChecker.Position = Vector2.new(Value, InventoryChecker.Position.Y)
+   end,
+})
+
+PlayersTab:CreateSlider({
+   Name = "Position Y",
+   Range = {0, 1080},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 200,
+   Flag = "InvPosY",
+   Callback = function(Value)
+       InventoryChecker.Position = Vector2.new(InventoryChecker.Position.X, Value)
+   end,
+})
+
+PlayersTab:CreateSlider({
+   Name = "Update Delay",
+   Range = {0.1, 2},
+   Increment = 0.05,
+   Suffix = "s",
+   CurrentValue = 0.25,
+   Flag = "InvDelay",
+   Callback = function(Value)
+       InventoryChecker.UpdateDelay = Value
+   end,
+})
+
+-- Inventory Update Loop
+RunService.RenderStepped:Connect(function()
+    if InventoryChecker.Enabled then
+        local currentTime = tick()
+        if currentTime - InventoryChecker.LastUpdate >= InventoryChecker.UpdateDelay then
+            InventoryChecker.LastUpdate = currentTime
+            
+            -- Check aimbot target first
+            local targetPlayer = Aimbot.CurrentTarget or SilentAim.CurrentTarget
+            if targetPlayer and IsAlive(targetPlayer) then
+                UpdateInventory(targetPlayer.Name)
+            else
+                ClearInventoryDrawings()
+            end
+        end
+    end
+end)
+
+-- ==================== MOVEMENT TAB ====================
+local SpeedSection = MovementTab:CreateSection("Speed")
+
+local Speed = {
+    Enabled = false,
+    Amount = 16
+}
+
+MovementTab:CreateToggle({
+   Name = "Enable Speed",
+   CurrentValue = false,
+   Flag = "SpeedToggle",
+   Callback = function(Value)
+       Speed.Enabled = Value
+   end,
+})
+
+MovementTab:CreateSlider({
+   Name = "Speed Amount",
+   Range
