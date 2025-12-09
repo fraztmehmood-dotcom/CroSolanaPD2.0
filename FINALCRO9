@@ -737,97 +737,139 @@ RunService.RenderStepped:Connect(function()
 end)
 
 -- ==================== INVENTORY CHECKER ====================
-PlayersTab:CreateSection("Inventory Checker")
+local InventorySection = PlayersTab:CreateSection("Inventory Checker (Swimhub)")
 
-local function CheckInventory(player)
-    local items = {}
+-- Inventory Checker Variables (from swimhub)
+local inv_originalpos = Vector2.new(200, 200)
+local draw, inventory, objects = {}, { objs = {} }, {}
 
-    if player.Character then
-        for _, item in pairs(player.Character:GetChildren()) do
-            if item:IsA("Tool") then
-                table.insert(items, item.Name)
-            end
-        end
+function draw:new(type, props)
+    local obj = Drawing.new(type)
+    for i,v in pairs(props) do
+        obj[i] = v
     end
-
-    if player:FindFirstChild("Backpack") then
-        for _, item in pairs(player.Backpack:GetChildren()) do
-            if item:IsA("Tool") then
-                table.insert(items, item.Name)
-            end
-        end
-    end
-
-    pcall(function()
-        local rplayer = ReplicatedStorage:FindFirstChild("Players") and ReplicatedStorage.Players:FindFirstChild(player.Name)
-        if rplayer and rplayer:FindFirstChild("Inventory") then
-            for _, item in pairs(rplayer.Inventory:GetChildren()) do
-                if not table.find(items, item.Name) then
-                    table.insert(items, item.Name)
-                end
-            end
-        end
-    end)
-
-    return items
+    objects[#objects + 1] = obj
+    return obj
 end
 
-PlayersTab:CreateButton({
-   Name = "Check Target's Inventory",
-   Callback = function()
-       local target = Aimbot.Target or SilentAim.Target
-       if target then
-           local items = CheckInventory(target)
+function draw:removeall()
+    for i, v in pairs(objects) do
+        v:Remove()
+        table.remove(objects, i)
+    end
+end
 
-           if #items > 0 then
-               print("=== " .. target.Name .. "'s Inventory ===")
-               for _, item in pairs(items) do
-                   print("- " .. item)
-               end
-           else
-               print(target.Name .. " has no items!")
-           end
+function draw:changevis(value)
+    for i, v in pairs(objects) do
+        v.Visible = value
+    end
+end
 
-           Rayfield:Notify({
-              Title = "Inventory Checked",
-              Content = "Found " .. #items .. " items. Check console (F9)",
-              Duration = 3,
-           })
-       else
-           Rayfield:Notify({
-              Title = "No Target",
-              Content = "Aim at someone first!",
-              Duration = 3,
-           })
+function inventory:add(_text, _size)
+    local text = draw:new("Text", {
+        Text = _text,
+        Size = _size,
+        Font = Drawing.Fonts.Monospace,
+        Outline = true,
+        Center = false,
+        Position = inv_originalpos + Vector2.new(0, (_size + 1) * #inventory.objs),
+        Transparency = 1,
+        Visible = true,
+        Color = Color3.new(1, 1, 1),
+        ZIndex = 1,
+    })
+    inventory.objs[#inventory.objs + 1] = text
+end
+
+function inventory:refresh()
+    for i, v in inventory.objs do
+        if v then v:Remove() end
+        inventory.objs[i] = nil
+        v = nil
+    end
+end
+
+function inventory:update(__name)
+    local rplayers = ReplicatedStorage.Players
+    local updateon
+    for _, rplayer in next, rplayers:GetChildren() do
+        if __name == rplayer.Name then
+            updateon = rplayer
+        end
+    end
+    if not updateon then return inventory:refresh() end
+    inventory:add("" .. updateon.Name .. " Inventory", 13)
+    inventory:add("[Inventory]", 13)
+    for _, item in next, updateon.Inventory:GetChildren() do
+        inventory:add("    " .. item.Name, 13)
+    end
+end
+
+-- Inventory UI
+local INVENTORY_ENABLED = false
+local INV_UPDATE_DELAY = 0.25
+local FrameTimer = tick()
+
+PlayersTab:CreateToggle({
+   Name = "Enable Inventory Viewer",
+   CurrentValue = false,
+   Flag = "InvViewerToggle",
+   Callback = function(Value)
+       INVENTORY_ENABLED = Value
+       if not Value then
+           inventory:refresh()
        end
    end,
 })
 
-PlayersTab:CreateButton({
-   Name = "Check All Players",
-   Callback = function()
-       print("=== ALL PLAYERS INVENTORY ===")
-       for _, player in pairs(Players:GetPlayers()) do
-           if player ~= LocalPlayer then
-               local items = CheckInventory(player)
-               print("\n" .. player.Name .. ":")
-               if #items > 0 then
-                   for _, item in pairs(items) do
-                       print("  - " .. item)
-                   end
-               else
-                   print("  (No items)")
-               end
-           end
-       end
-
-       Rayfield:Notify({
-          Title = "Checked All Players",
-          Content = "Results in console (F9)",
-          Duration = 3,
-       })
+PlayersTab:CreateSlider({
+   Name = "Position X",
+   Range = {0, 1920},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 200,
+   Flag = "InvPosXSlider",
+   Callback = function(Value)
+       inv_originalpos = Vector2.new(Value, inv_originalpos.Y)
    end,
 })
+
+PlayersTab:CreateSlider({
+   Name = "Position Y",
+   Range = {0, 1080},
+   Increment = 10,
+   Suffix = "px",
+   CurrentValue = 200,
+   Flag = "InvPosYSlider",
+   Callback = function(Value)
+       inv_originalpos = Vector2.new(inv_originalpos.X, Value)
+   end,
+})
+
+PlayersTab:CreateSlider({
+   Name = "Update Delay",
+   Range = {0.1, 2},
+   Increment = 0.05,
+   Suffix = "s",
+   CurrentValue = 0.25,
+   Flag = "InvDelaySlider",
+   Callback = function(Value)
+       INV_UPDATE_DELAY = Value
+   end,
+})
+
+-- Inventory Update Loop
+RunService.RenderStepped:Connect(function()
+    if (tick() - FrameTimer) >= INV_UPDATE_DELAY then
+        FrameTimer = tick()
+        inventory:refresh()
+        if INVENTORY_ENABLED and silent_aim.target_part then
+            local name = silent_aim.target_part.Parent.Name
+            inventory:update(name)
+        end
+    end
+end)
+
 
 -- ==================== MOVEMENT ====================
 MovementTab:CreateSection("Speed")
